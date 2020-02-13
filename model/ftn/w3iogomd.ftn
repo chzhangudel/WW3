@@ -599,11 +599,12 @@
            CASE('FIC')
              FLG2D(6,11)=.TRUE.
            CASE('USP')
-             IF (USSPF(1).GE.1) THEN
+             !BGR - commenting this out is bad, but usspf(1) is uninitialized in multi unless unified point output is on...
+             !IF (USSPF(1).GE.1) THEN
                FLG2D(6,12)=.TRUE.
-             ELSE
-               WRITE(NDSEN,1008) 'USP','USSP'
-               END IF
+             !ELSE
+             !  WRITE(NDSEN,1008) 'USP','USSP'
+             !  END IF
 !
 ! Group 7
 !
