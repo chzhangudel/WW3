@@ -28,7 +28,7 @@ module wave_model_mod
       ! USE statements
       use wminitmd, only: wminit, wminitnml
       use w3gdatmd, only: NX, NY
-
+      use w3gdatmd, only: usspf, ussp_wn
 
       ! Subroutine arguments
       type(atmos_wave_boundary_type), intent(inout)  :: Atm2Waves
@@ -94,11 +94,26 @@ module wave_model_mod
       allocate(Ice2Waves%wavgrd_vcurr_glo(1:NX,1:NY,1))
       Ice2Waves%wavgrd_vcurr_glo(1:NX,1:NY,1) = 0.0
 
-      allocate(Wav%ustk0_glo(1:NX,1:NY,1))
-      Wav%ustk0_glo(:,:,:) = 0.0
-      allocate(Wav%vstk0_glo(1:NX,1:NY,1))
-      Wav%vstk0_glo(:,:,:) = 0.0
+      allocate(Wav%ustk0_glo(1:NX,1:NY))
+      Wav%ustk0_glo(:,:) = 0.0
+      allocate(Wav%vstk0_glo(1:NX,1:NY))
+      Wav%vstk0_glo(:,:) = 0.0
 
+      if (usspf(1).gt.usspf(2)) then
+        print*,'usspf(1): ',usspf(1)
+        print*,'usspf(2): ',usspf(2)
+        print*,'usspf(1) is greater than usspf(2) in mod_def.ww3. ',&
+             ' Check ww3_grid.inp file, recreate mod_def.ww3 with ussp <= iussp to continue'
+        stop
+      endif
+      Wav%num_Stk_bands = usspf(2)-usspf(1)+1
+      allocate(Wav%stk_wavenumbers(1:Wav%num_Stk_Bands)) ; Wav%stk_wavenumbers(:) = 0.0
+      Wav%stk_wavenumbers(:) = USSP_WN(usspf(1):usspf(2))
+
+      allocate(Wav%ustkb_glo(1:NX,1:NY,Wav%num_stk_bands))
+      Wav%ustkb_glo(:,:,:) = 0.0
+      allocate(Wav%vstkb_glo(1:NX,1:NY,Wav%num_stk_bands))
+      Wav%vstkb_glo(:,:,:) = 0.0
 
       return
     end subroutine wave_model_init
@@ -114,8 +129,8 @@ module wave_model_mod
       use w3gdatmd, only: NX, NY
       use w3idatmd, only: wx0, wxN, wy0, wyN, TW0, TWN, &
                           cx0, cxN, cy0, cyN, TC0, TCN
-      use w3adatmd, only: ussx, ussy
-      use w3gdatmd, only: nseal, mapsf
+      use w3adatmd, only: ussx, ussy, ussp
+      use w3gdatmd, only: nseal, mapsf, NK
       use w3odatmd, only: iaproc, naproc
       ! Subroutine arguments
       type(atmos_wave_boundary_type), intent(in) :: Atm2Waves
@@ -127,8 +142,9 @@ module wave_model_mod
       ! Local parameters
       integer :: I, yr, mo, da, hr, mi, se, is, ie, js, je
       integer :: isea, isea_g, ix, iy, jx, jy, pix, piy
+      integer :: b
 
-      integer :: glob_loc_x(NX,NY,1), glob_loc_y(NX,NY,1)
+      integer :: glob_loc_x(NX,NY), glob_loc_y(NX,NY)
 
       !----------------------------------------------------------------------
       !Convert the ending time of this call into WW3 time format, which
@@ -170,10 +186,12 @@ module wave_model_mod
       ! write(*,*)'Into wave model VO max: ',maxval(ice2Waves%Vcurr_global),maxval(cy0)
       CALL WMWAVE ( TEND )
 
-      wav%ustk0_glo(:,:,1) = 0.0
-      wav%vstk0_glo(:,:,1) = 0.0
-      Wav%glob_loc_X(:,:,1) = 0
-      Wav%glob_loc_Y(:,:,1) = 0
+      wav%ustk0_glo(:,:) = 0.0
+      wav%vstk0_glo(:,:) = 0.0
+      wav%ustkb_glo(:,:,:) = 0.0
+      wav%vstkb_glo(:,:,:) = 0.0
+      Wav%glob_loc_X(:,:) = 0
+      Wav%glob_loc_Y(:,:) = 0
 
       call mpp_get_compute_domain( Wav%domain, is, ie, js, je )
       isea = 1
@@ -183,30 +201,45 @@ module wave_model_mod
             ISEA_G   = IAPROC + (ISEA-1)*NAPROC
             jx = MAPSF(ISEA_G,1)
             jy = MAPSF(ISEA_G,2)
-            Wav%ustk0_mpp(ix,iy,1) = USSX(isea)
-            Wav%vstk0_mpp(ix,iy,1) = USSY(isea)
-            Wav%glob_loc_X(ix,iy,1) = jx
-            Wav%glob_loc_Y(ix,iy,1) = jy
+            Wav%ustk0_mpp(ix,iy) = USSX(isea)
+            Wav%vstk0_mpp(ix,iy) = USSY(isea)
+            Wav%glob_loc_X(ix,iy) = jx
+            Wav%glob_loc_Y(ix,iy) = jy
+            do b=1,Wav%num_stk_bands
+              Wav%ustkb_mpp(ix,iy,b) = USSP(isea,b)
+              Wav%vstkb_mpp(ix,iy,b) = USSP(isea,NK+b)
+            enddo
           endif
           isea = isea+1
         end do
       end do
+
       call mpp_global_field(Wav%domain,Wav%ustk0_mpp,wav%ustk0_glo)
       call mpp_global_field(Wav%domain,Wav%vstk0_mpp,wav%vstk0_glo)
+      do b = 1,Wav%num_stk_bands
+        call mpp_global_field(Wav%domain,Wav%ustkb_mpp(:,:,b),wav%ustkb_glo(:,:,b))
+        call mpp_global_field(Wav%domain,Wav%vstkb_mpp(:,:,b),wav%vstkb_glo(:,:,b))
+      enddo
       call mpp_global_field(Wav%domain,Wav%glob_loc_X,glob_loc_X)
       call mpp_global_field(Wav%domain,Wav%glob_loc_Y,glob_loc_Y)
 
-      Wav%ustk0_mpp(:,:,:) = 0.0
-      Wav%vstk0_mpp(:,:,:) = 0.0
+      Wav%ustk0_mpp(:,:) = 0.0
+      Wav%vstk0_mpp(:,:) = 0.0
+      Wav%ustkb_mpp(:,:,:) = 0.0
+      Wav%vstkb_mpp(:,:,:) = 0.0
 
       isea = 1
       do ix=1,NX
          do iy=1,NY
-           Pix = glob_loc_X(ix,iy,1)
-           Piy = glob_loc_Y(ix,iy,1)
+           Pix = glob_loc_X(ix,iy)
+           Piy = glob_loc_Y(ix,iy)
            if (Pix>=is .and. Pix<=ie .and. Piy>=js .and. Piy<=je) then
-              Wav%ustk0_mpp(Pix,Piy,1) = wav%ustk0_glo(ix,iy,1)
-              Wav%vstk0_mpp(Pix,Piy,1) = wav%vstk0_glo(ix,iy,1)
+              Wav%ustk0_mpp(Pix,Piy) = wav%ustk0_glo(ix,iy)
+              Wav%vstk0_mpp(Pix,Piy) = wav%vstk0_glo(ix,iy)
+              do b = 1,Wav%num_stk_bands
+                Wav%ustkb_mpp(Pix,Piy,b) = wav%ustkb_glo(ix,iy,b)
+                Wav%vstkb_mpp(Pix,Piy,b) = wav%vstkb_glo(ix,iy,b)
+              enddo
            endif
          enddo
       enddo
