@@ -94,11 +94,6 @@ module wave_model_mod
       allocate(Ice2Waves%wavgrd_vcurr_glo(1:NX,1:NY,1))
       Ice2Waves%wavgrd_vcurr_glo(1:NX,1:NY,1) = 0.0
 
-      allocate(Wav%ustk0_glo(1:NX,1:NY))
-      Wav%ustk0_glo(:,:) = 0.0
-      allocate(Wav%vstk0_glo(1:NX,1:NY))
-      Wav%vstk0_glo(:,:) = 0.0
-
       if (usspf(1).gt.usspf(2)) then
         print*,'usspf(1): ',usspf(1)
         print*,'usspf(2): ',usspf(2)
@@ -186,10 +181,6 @@ module wave_model_mod
       ! write(*,*)'Into wave model VO max: ',maxval(ice2Waves%Vcurr_global),maxval(cy0)
       CALL WMWAVE ( TEND )
 
-      wav%ustk0_glo(:,:) = 0.0
-      wav%vstk0_glo(:,:) = 0.0
-      wav%ustkb_glo(:,:,:) = 0.0
-      wav%vstkb_glo(:,:,:) = 0.0
       Wav%glob_loc_X(:,:) = 0
       Wav%glob_loc_Y(:,:) = 0
 
@@ -201,8 +192,6 @@ module wave_model_mod
             ISEA_G   = IAPROC + (ISEA-1)*NAPROC
             jx = MAPSF(ISEA_G,1)
             jy = MAPSF(ISEA_G,2)
-            Wav%ustk0_mpp(ix,iy) = USSX(isea)
-            Wav%vstk0_mpp(ix,iy) = USSY(isea)
             Wav%glob_loc_X(ix,iy) = jx
             Wav%glob_loc_Y(ix,iy) = jy
             do b=1,Wav%num_stk_bands
@@ -214,8 +203,6 @@ module wave_model_mod
         end do
       end do
 
-      call mpp_global_field(Wav%domain,Wav%ustk0_mpp,wav%ustk0_glo)
-      call mpp_global_field(Wav%domain,Wav%vstk0_mpp,wav%vstk0_glo)
       do b = 1,Wav%num_stk_bands
         call mpp_global_field(Wav%domain,Wav%ustkb_mpp(:,:,b),wav%ustkb_glo(:,:,b))
         call mpp_global_field(Wav%domain,Wav%vstkb_mpp(:,:,b),wav%vstkb_glo(:,:,b))
@@ -223,8 +210,6 @@ module wave_model_mod
       call mpp_global_field(Wav%domain,Wav%glob_loc_X,glob_loc_X)
       call mpp_global_field(Wav%domain,Wav%glob_loc_Y,glob_loc_Y)
 
-      Wav%ustk0_mpp(:,:) = 0.0
-      Wav%vstk0_mpp(:,:) = 0.0
       Wav%ustkb_mpp(:,:,:) = 0.0
       Wav%vstkb_mpp(:,:,:) = 0.0
 
@@ -234,8 +219,6 @@ module wave_model_mod
            Pix = glob_loc_X(ix,iy)
            Piy = glob_loc_Y(ix,iy)
            if (Pix>=is .and. Pix<=ie .and. Piy>=js .and. Piy<=je) then
-              Wav%ustk0_mpp(Pix,Piy) = wav%ustk0_glo(ix,iy)
-              Wav%vstk0_mpp(Pix,Piy) = wav%vstk0_glo(ix,iy)
               do b = 1,Wav%num_stk_bands
                 Wav%ustkb_mpp(Pix,Piy,b) = wav%ustkb_glo(ix,iy,b)
                 Wav%vstkb_mpp(Pix,Piy,b) = wav%vstkb_glo(ix,iy,b)
@@ -244,8 +227,6 @@ module wave_model_mod
          enddo
       enddo
 
-      ! write(*,*)'Out of wave model Us max: ',maxval(Wav%ustk0_glo),maxval(ussx)
-      ! write(*,*)'Out of wave model Vs max: ',maxval(Wav%vstk0_glo),maxval(ussy)
       !----------------------------------------------------------------------
 
       return

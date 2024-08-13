@@ -21,11 +21,7 @@ type wave_data_type
 
   ! These fields are used to provide information about the waves to the atmosphere/ocean/ice
   real, pointer, dimension(:,:) :: &
-       HS => NULL(), & !< The significant wave height [m]
-       ustk0_mpp => NULL(), &
-       vstk0_mpp => NULL(), &
-       ustk0_glo => NULL(), &
-       vstk0_glo => NULL()
+       HS => NULL() !< The significant wave height [m]
 
   real, pointer, dimension(:,:,:) :: &
        ustkb_mpp => NULL(), &
@@ -63,9 +59,7 @@ type ice_wave_boundary_type
         wavgrd_Ucurr_mpp => NULL(), & !
         wavgrd_Vcurr_mpp => NULL(), & !
         wavgrd_ucurr_glo => NULL(), & !
-        wavgrd_vcurr_glo => NULL(), & !
-        icegrd_ustk0_mpp => NULL(), & !
-        icegrd_vstk0_mpp => NULL()
+        wavgrd_vcurr_glo => NULL()
 
    real, dimension(:,:,:,:), pointer :: & ! (lon, lat,tile,Nstk)
         icegrd_ustkb_mpp => NULL(), & !
